@@ -1,0 +1,6 @@
+{
+  "name": "@library/config",
+  "version": "0.1.0",
+  "description": "Shared configuration",
+  "private": true
+}
