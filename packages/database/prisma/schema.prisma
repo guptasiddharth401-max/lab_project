@@ -1,0 +1,842 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// TENANT MODEL
+// ============================================================================
+
+model Organization {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  libraries Library[]
+
+  @@map("organizations")
+}
+
+model Library {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  name           String
+  city           String?
+  timezone       String   @default("Asia/Kolkata")
+  capacity       Int      @default(80)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  users            User[]
+  blocks           Block[]
+  sections         Section[]
+  seats            Seat[]
+  shifts           Shift[]
+  plans            Plan[]
+  students         Student[]
+  admissions       Admission[]
+  feeCycles        FeeCycle[]
+  payments         Payment[]
+  concessions      Concession[]
+  receipts         Receipt[]
+  cashClosings     CashClosing[]
+  attendance       Attendance[]
+  routers          Router[]
+  internetSessions InternetSession[]
+  auditLogs        AuditLog[]
+  settings         LibrarySetting[]
+
+  @@index([organizationId])
+  @@map("libraries")
+}
+
+model LibrarySetting {
+  id        String   @id @default(uuid()) @db.Uuid
+  libraryId String   @db.Uuid
+  key       String
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  library Library @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+
+  @@unique([libraryId, key])
+  @@index([libraryId])
+  @@map("library_settings")
+}
+
+// ============================================================================
+// USER & AUTHENTICATION
+// ============================================================================
+
+enum UserRole {
+  OWNER
+  MANAGER
+  RECEPTIONIST
+  ACCOUNTANT
+  STUDENT
+}
+
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  libraryId String   @db.Uuid
+  email     String   @unique
+  phone     String?
+  name      String
+  role      UserRole @default(RECEPTIONIST)
+  password  String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  library      Library        @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  sessions     AuthSession[]
+  auditLogs    AuditLog[]
+  seatAssigns  SeatAssignment[] @relation("assignedBy")
+  payments     Payment[]        @relation("recordedBy")
+  concessions  Concession[]     @relation("createdBy")
+  cashClosings CashClosing[]    @relation("closedBy")
+  receipts     Receipt[]        @relation("recordedBy")
+
+  @@index([libraryId])
+  @@map("users")
+}
+
+model AuthSession {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  token     String   @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  lastSeenAt DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("auth_sessions")
+}
+
+model OtpChallenge {
+  id        String   @id @default(uuid()) @db.Uuid
+  mobile    String
+  otpHash   String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([mobile])
+  @@index([expiresAt])
+  @@map("otp_challenges")
+}
+
+// ============================================================================
+// STUDENT & ADMISSION
+// ============================================================================
+
+model Student {
+  id        String   @id @default(uuid()) @db.Uuid
+  libraryId String   @db.Uuid
+  code      String   // Human-readable like LIB001
+  name      String
+  mobile    String
+  email     String?
+  course    String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  library       Library           @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  admissions    Admission[]
+  devices       StudentDevice[]
+  seatAssignments SeatAssignment[]
+  feeLedger     FeeLedgerEntry[]
+  payments      Payment[]
+  attendance    Attendance[]
+  internetSessions InternetSession[]
+
+  @@unique([libraryId, code])
+  @@unique([libraryId, mobile])
+  @@index([libraryId])
+  @@index([code])
+  @@map("students")
+}
+
+enum AdmissionStatus {
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+  CANCELLED
+  COMPLETED
+}
+
+model Admission {
+  id        String   @id @default(uuid()) @db.Uuid
+  libraryId String   @db.Uuid
+  studentId String   @db.Uuid
+  planId    String   @db.Uuid
+  shiftId   String   @db.Uuid
+  status    AdmissionStatus @default(ACTIVE)
+  startDate DateTime
+  endDate   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  library       Library         @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  student       Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  plan          Plan            @relation(fields: [planId], references: [id])
+  shift         Shift           @relation(fields: [shiftId], references: [id])
+  seatAssignments SeatAssignment[]
+  feeCycles     FeeCycle[]
+  paymentAllocations PaymentAllocation[]
+
+  @@index([libraryId])
+  @@index([studentId])
+  @@index([status])
+  @@index([endDate])
+  @@map("admissions")
+}
+
+// ============================================================================
+// LIBRARY STRUCTURE
+// ============================================================================
+
+model Block {
+  id        String   @id @default(uuid()) @db.Uuid
+  libraryId String   @db.Uuid
+  name      String
+  createdAt DateTime @default(now())
+
+  library   Library   @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  sections  Section[]
+
+  @@index([libraryId])
+  @@map("blocks")
+}
+
+model Section {
+  id        String   @id @default(uuid()) @db.Uuid
+  libraryId String   @db.Uuid
+  blockId   String   @db.Uuid
+  name      String
+  createdAt DateTime @default(now())
+
+  library Library @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  block   Block   @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  seats   Seat[]
+
+  @@index([libraryId])
+  @@index([blockId])
+  @@map("sections")
+}
+
+model Seat {
+  id        String   @id @default(uuid()) @db.Uuid
+  libraryId String   @db.Uuid
+  sectionId String   @db.Uuid
+  code      String   // Like A01, B40
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  library  Library           @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  section  Section           @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  assignments SeatAssignment[]
+
+  @@unique([libraryId, code])
+  @@index([libraryId])
+  @@index([sectionId])
+  @@map("seats")
+}
+
+model SeatAssignment {
+  id          String   @id @default(uuid()) @db.Uuid
+  libraryId   String   @db.Uuid
+  studentId   String   @db.Uuid
+  admissionId String   @db.Uuid
+  seatId      String   @db.Uuid
+  startTime   DateTime
+  endTime     DateTime?
+  assignedBy  String   @db.Uuid
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  student     Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  admission   Admission   @relation(fields: [admissionId], references: [id], onDelete: Cascade)
+  seat        Seat        @relation(fields: [seatId], references: [id], onDelete: Cascade)
+  assignedByUser User      @relation("assignedBy", fields: [assignedBy], references: [id])
+
+  @@index([libraryId])
+  @@index([studentId])
+  @@index([seatId])
+  @@index([startTime])
+  @@map("seat_assignments")
+}
+
+// ============================================================================
+// SHIFTS & PLANS
+// ============================================================================
+
+model Shift {
+  id           String   @id @default(uuid()) @db.Uuid
+  libraryId    String   @db.Uuid
+  name         String
+  startMinutes Int      // Minutes from midnight
+  endMinutes   Int      // Minutes from midnight
+  graceBefore  Int      @default(0) // Minutes
+  graceAfter   Int      @default(0) // Minutes
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  library    Library     @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  admissions Admission[]
+
+  @@index([libraryId])
+  @@map("shifts")
+}
+
+model Plan {
+  id        String   @id @default(uuid()) @db.Uuid
+  libraryId String   @db.Uuid
+  name      String
+  amount    Decimal  @db.Decimal(12, 2)
+  duration  Int      // Days
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  library    Library     @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  admissions Admission[]
+
+  @@index([libraryId])
+  @@map("plans")
+}
+
+// ============================================================================
+// FINANCIAL SYSTEM
+// ============================================================================
+
+enum FeeCycleStatus {
+  OPEN
+  PARTIAL
+  PAID
+  OVERDUE
+  VOID
+}
+
+model FeeCycle {
+  id        String   @id @default(uuid()) @db.Uuid
+  libraryId String   @db.Uuid
+  admissionId String  @db.Uuid
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  dueDate   DateTime @db.Date
+  charge    Decimal  @db.Decimal(12, 2)
+  status    FeeCycleStatus @default(OPEN)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  library     Library         @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  admission   Admission       @relation(fields: [admissionId], references: [id], onDelete: Cascade)
+  ledger      FeeLedgerEntry[]
+  concessions Concession[]
+  allocations PaymentAllocation[]
+
+  @@index([libraryId])
+  @@index([admissionId])
+  @@index([dueDate])
+  @@index([status])
+  @@map("fee_cycles")
+}
+
+enum LedgerEntryType {
+  CHARGE
+  PAYMENT
+  CONCESSION
+  REFUND
+  ADJUSTMENT
+  REVERSAL
+}
+
+model FeeLedgerEntry {
+  id        String   @id @default(uuid()) @db.Uuid
+  libraryId String   @db.Uuid
+  studentId String   @db.Uuid
+  feeCycleId String   @db.Uuid
+  type      LedgerEntryType
+  amount    Decimal  @db.Decimal(12, 2)
+  notes     String?
+  createdAt DateTime @default(now())
+
+  library   Library   @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  feeCycle  FeeCycle  @relation(fields: [feeCycleId], references: [id], onDelete: Cascade)
+
+  @@index([libraryId])
+  @@index([studentId])
+  @@index([feeCycleId])
+  @@map("fee_ledger_entries")
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REVERSED
+}
+
+model Payment {
+  id         String   @id @default(uuid()) @db.Uuid
+  libraryId  String   @db.Uuid
+  studentId  String   @db.Uuid
+  admissionId String  @db.Uuid
+  amount     Decimal  @db.Decimal(12, 2)
+  method     PaymentMethod
+  reference  String?
+  status     PaymentStatus @default(PENDING)
+  paidAt     DateTime
+  recordedBy String   @db.Uuid
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  library     Library              @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  student     Student              @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  admission   Admission            @relation(fields: [admissionId], references: [id], onDelete: Cascade)
+  recordedByUser User               @relation("recordedBy", fields: [recordedBy], references: [id])
+  allocations PaymentAllocation[]
+  receipt     Receipt?
+
+  @@index([libraryId])
+  @@index([studentId])
+  @@index([status])
+  @@index([paidAt])
+  @@map("payments")
+}
+
+model PaymentAllocation {
+  id         String   @id @default(uuid()) @db.Uuid
+  paymentId  String   @db.Uuid
+  feeCycleId String   @db.Uuid
+  admissionId String  @db.Uuid
+  amount     Decimal  @db.Decimal(12, 2)
+  createdAt  DateTime @default(now())
+
+  payment    Payment    @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  feeCycle   FeeCycle   @relation(fields: [feeCycleId], references: [id], onDelete: Cascade)
+  admission  Admission  @relation(fields: [admissionId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@index([feeCycleId])
+  @@map("payment_allocations")
+}
+
+model Concession {
+  id         String   @id @default(uuid()) @db.Uuid
+  libraryId  String   @db.Uuid
+  feeCycleId String   @db.Uuid
+  amount     Decimal  @db.Decimal(12, 2)
+  reason     String
+  createdBy  String   @db.Uuid
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  library    Library   @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  feeCycle   FeeCycle  @relation(fields: [feeCycleId], references: [id], onDelete: Cascade)
+  createdByUser User    @relation("createdBy", fields: [createdBy], references: [id])
+
+  @@index([libraryId])
+  @@index([feeCycleId])
+  @@map("concessions")
+}
+
+model Receipt {
+  id         String   @id @default(uuid()) @db.Uuid
+  libraryId  String   @db.Uuid
+  paymentId  String   @db.Uuid @unique
+  number     String   // Unique per library
+  amount     Decimal  @db.Decimal(12, 2)
+  method     PaymentMethod
+  issuedAt   DateTime
+  recordedBy String   @db.Uuid
+  createdAt  DateTime @default(now())
+
+  library     Library  @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  payment     Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  recordedByUser User   @relation("recordedBy", fields: [recordedBy], references: [id])
+
+  @@unique([libraryId, number])
+  @@index([libraryId])
+  @@map("receipts")
+}
+
+model CashClosing {
+  id          String   @id @default(uuid()) @db.Uuid
+  libraryId   String   @db.Uuid
+  date        DateTime @db.Date
+  openingCash Decimal  @db.Decimal(12, 2)
+  collected   Decimal  @db.Decimal(12, 2)
+  refunds     Decimal  @db.Decimal(12, 2) @default(0)
+  expectedCash Decimal @db.Decimal(12, 2)
+  actualCash  Decimal  @db.Decimal(12, 2) @default(0)
+  difference  Decimal  @db.Decimal(12, 2) @default(0)
+  closedBy    String   @db.Uuid
+  closedAt    DateTime
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  library   Library @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  closedByUser User  @relation("closedBy", fields: [closedBy], references: [id])
+
+  @@unique([libraryId, date])
+  @@index([libraryId])
+  @@map("cash_closings")
+}
+
+// ============================================================================
+// ATTENDANCE
+// ============================================================================
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  LEAVE
+}
+
+model Attendance {
+  id        String   @id @default(uuid()) @db.Uuid
+  libraryId String   @db.Uuid
+  studentId String   @db.Uuid
+  date      DateTime @db.Date
+  checkIn   DateTime?
+  checkOut  DateTime?
+  status    AttendanceStatus @default(PRESENT)
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  library Library @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([libraryId, studentId, date])
+  @@index([libraryId])
+  @@index([studentId])
+  @@index([date])
+  @@map("attendance")
+}
+
+// ============================================================================
+// INTERNET & DEVICES
+// ============================================================================
+
+enum DeviceType {
+  PHONE
+  LAPTOP
+  TABLET
+  OTHER
+}
+
+enum DeviceStatus {
+  ACTIVE
+  BLOCKED
+  REVOKED
+}
+
+model StudentDevice {
+  id         String   @id @default(uuid()) @db.Uuid
+  libraryId  String   @db.Uuid
+  studentId  String   @db.Uuid
+  type       DeviceType
+  name       String
+  credential String   // Hash of device credential
+  status     DeviceStatus @default(ACTIVE)
+  registeredAt DateTime
+  lastSeenAt  DateTime @default(now())
+  revokedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  student         Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  internetSessions InternetSession[]
+
+  @@index([studentId])
+  @@index([status])
+  @@map("student_devices")
+}
+
+enum InternetSessionStatus {
+  ACTIVE
+  DISCONNECTED
+  BLOCKED
+}
+
+model InternetSession {
+  id          String   @id @default(uuid()) @db.Uuid
+  libraryId   String   @db.Uuid
+  studentId   String   @db.Uuid
+  deviceId    String   @db.Uuid
+  routerId    String   @db.Uuid
+  clientIp    String?
+  clientMac   String?
+  startTime   DateTime
+  endTime     DateTime?
+  status      InternetSessionStatus @default(ACTIVE)
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  library     Library      @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  student     Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  device      StudentDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  router      Router       @relation(fields: [routerId], references: [id], onDelete: Cascade)
+
+  @@index([libraryId])
+  @@index([studentId])
+  @@index([status])
+  @@map("internet_sessions")
+}
+
+enum GuestStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+model GuestUser {
+  id          String   @id @default(uuid()) @db.Uuid
+  libraryId   String   @db.Uuid
+  name        String
+  mobile      String
+  purpose     String
+  status      GuestStatus @default(ACTIVE)
+  accessStart DateTime
+  accessEnd   DateTime
+  deviceLimit Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  library Library @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  devices GuestDevice[]
+  sessions GuestSession[]
+
+  @@index([libraryId])
+  @@index([status])
+  @@map("guest_users")
+}
+
+model GuestDevice {
+  id        String   @id @default(uuid()) @db.Uuid
+  guestId   String   @db.Uuid
+  name      String
+  credential String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  guest GuestUser @relation(fields: [guestId], references: [id], onDelete: Cascade)
+
+  @@index([guestId])
+  @@map("guest_devices")
+}
+
+model GuestSession {
+  id        String   @id @default(uuid()) @db.Uuid
+  guestId   String   @db.Uuid
+  startTime DateTime
+  endTime   DateTime?
+  status    InternetSessionStatus @default(ACTIVE)
+  createdAt DateTime @default(now())
+
+  guest GuestUser @relation(fields: [guestId], references: [id], onDelete: Cascade)
+
+  @@index([guestId])
+  @@map("guest_sessions")
+}
+
+// ============================================================================
+// ROUTER MANAGEMENT
+// ============================================================================
+
+enum RouterStatus {
+  ONLINE
+  OFFLINE
+  ERROR
+}
+
+model Router {
+  id          String   @id @default(uuid()) @db.Uuid
+  libraryId   String   @db.Uuid
+  name        String
+  macAddress  String?
+  model       String
+  status      RouterStatus @default(OFFLINE)
+  lastSeen    DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  library     Library              @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  enrollment  RouterEnrollmentToken?
+  commands    RouterCommand[]
+  events      RouterEvent[]
+  sessions    InternetSession[]
+
+  @@index([libraryId])
+  @@map("routers")
+}
+
+model RouterEnrollmentToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  routerId  String   @db.Uuid @unique
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  router Router @relation(fields: [routerId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@map("router_enrollment_tokens")
+}
+
+enum RouterCommandStatus {
+  PENDING
+  SENT
+  ACKNOWLEDGED
+  FAILED
+}
+
+model RouterCommand {
+  id        String   @id @default(uuid()) @db.Uuid
+  routerId  String   @db.Uuid
+  command   String   // HEALTH_CHECK, GET_STATUS, etc.
+  payload   String?  @db.Text
+  status    RouterCommandStatus @default(PENDING)
+  response  String?  @db.Text
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+  sentAt    DateTime?
+  repliedAt DateTime?
+
+  router Router @relation(fields: [routerId], references: [id], onDelete: Cascade)
+
+  @@index([routerId])
+  @@index([status])
+  @@map("router_commands")
+}
+
+model RouterEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  routerId  String   @db.Uuid
+  event     String   // CONNECTED, DISCONNECTED, ERROR, etc.
+  details   String?  @db.Text
+  createdAt DateTime @default(now())
+
+  router Router @relation(fields: [routerId], references: [id], onDelete: Cascade)
+
+  @@index([routerId])
+  @@map("router_events")
+}
+
+// ============================================================================
+// NOTIFICATIONS & REQUESTS
+// ============================================================================
+
+enum NotificationChannel {
+  SMS
+  WHATSAPP
+  EMAIL
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  BOUNCED
+}
+
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  libraryId String   @db.Uuid
+  recipient String
+  channel   NotificationChannel
+  template  String
+  content   String   @db.Text
+  status    NotificationStatus @default(PENDING)
+  provider  String?
+  attempts  Int      @default(0)
+  sentAt    DateTime?
+  failReason String?
+  createdAt DateTime @default(now())
+
+  @@index([libraryId])
+  @@index([status])
+  @@map("notifications")
+}
+
+enum RequestStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+model StudentRequest {
+  id        String   @id @default(uuid()) @db.Uuid
+  libraryId String   @db.Uuid
+  studentId String   @db.Uuid
+  type      String   // PAYMENT, INTERNET, SEAT, etc.
+  subject   String
+  message   String   @db.Text
+  status    RequestStatus @default(OPEN)
+  response  String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  closedAt  DateTime?
+
+  @@index([libraryId])
+  @@index([status])
+  @@map("student_requests")
+}
+
+// ============================================================================
+// AUDIT & LOGGING
+// ============================================================================
+
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  libraryId String   @db.Uuid
+  actor     String   @db.Uuid
+  actorType String   // USER, SYSTEM, etc.
+  action    String   // STUDENT_CREATED, SEAT_ASSIGNED, etc.
+  entity    String   // Entity type
+  entityId  String   @db.Uuid
+  result    String   // SUCCESS, FAILURE
+  metadata  String?  @db.Text // JSON
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  library Library @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+
+  @@index([libraryId])
+  @@index([actor])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
