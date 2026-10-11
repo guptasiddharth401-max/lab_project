@@ -30,7 +30,9 @@ export class RolesGuard implements CanActivate {
     }
 
     if (!requiredRoles.includes(user.role)) {
-      throw new ForbiddenException('Insufficient permissions for this action.');
+      throw new ForbiddenException(
+        `This action requires one of the following roles: ${requiredRoles.join(', ')}`,
+      );
     }
 
     return true;

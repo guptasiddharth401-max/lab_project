@@ -1,21 +1,39 @@
-import { Body, Controller, Get, Param, Post, UseGuards, BadRequestException } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  UseGuards,
+  BadRequestException,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { PaymentService } from './payment.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthGuard } from '../auth/auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { LibraryId } from '../common/decorators/library-id.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
 import { RecordPaymentDto } from '@library/validation';
 import { AuthUser } from '@library/types';
 
 @Controller('payments')
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, RolesGuard)
 export class PaymentController {
   constructor(
     private readonly paymentService: PaymentService,
     private readonly auditService: AuditService,
   ) {}
 
+  /**
+   * Record a payment for a student.
+   * Restricted to: OWNER, MANAGER, RECEPTIONIST, ACCOUNTANT
+   */
   @Post('record')
+  @Roles('OWNER', 'MANAGER', 'RECEPTIONIST', 'ACCOUNTANT')
+  @HttpCode(HttpStatus.CREATED)
   async recordPayment(
     @Body() dto: RecordPaymentDto,
     @LibraryId() libraryId: string,
@@ -51,11 +69,22 @@ export class PaymentController {
     };
   }
 
+  /**
+   * Get outstanding balance for a student.
+   * Visible to: OWNER, MANAGER, ACCOUNTANT, STUDENT (own only)
+   */
   @Get('outstanding/:studentId')
+  @Roles('OWNER', 'MANAGER', 'ACCOUNTANT', 'STUDENT')
   async getOutstandingBalance(
     @Param('studentId') studentId: string,
     @LibraryId() libraryId: string,
+    @CurrentUser() user: AuthUser,
   ) {
+    // Students can only view their own balance
+    if (user.role === 'STUDENT' && user.id !== studentId) {
+      throw new BadRequestException('You can only view your own balance.');
+    }
+
     const balance = await this.paymentService.getOutstandingBalance(studentId, libraryId);
     return {
       success: true,
