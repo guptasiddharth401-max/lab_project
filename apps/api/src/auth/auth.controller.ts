@@ -1,106 +1,69 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { randomBytes } from 'crypto';
-import * as bcrypt from 'bcrypt';
-import { AuthUser, UserRole } from '@library/types';
+import { Body, Controller, Post, Req, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { Response, Request } from 'express';
+import { AuthService } from './auth.service';
 
-@Injectable()
-export class AuthService {
-  constructor(private readonly prisma: PrismaService) {}
+class LoginDto {
+  email: string;
+  password: string;
+}
 
-  async validateLogin(email: string, password: string): Promise<AuthUser | null> {
-    const user = await this.prisma.user.findUnique({
-      where: { email },
+@Controller('auth')
+export class AuthController {
+  constructor(private readonly authService: AuthService) {}
+
+  @Post('login')
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.login(dto.email, dto.password);
+
+    res.cookie('library_session', result.data.token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 24 * 60 * 60 * 1000,
     });
 
-    if (!user) {
-      return null;
-    }
-
-    const passwordValid = await bcrypt.compare(password, user.password);
-    if (!passwordValid) {
-      return null;
-    }
-
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role as UserRole,
-      libraryId: user.libraryId,
-    };
+    return result;
   }
 
-  async login(email: string, password: string) {
-    const user = await this.validateLogin(email, password);
-    if (!user) {
-      throw new UnauthorizedException('Invalid email or password.');
+  @Post('logout')
+  async logout(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const token = req.cookies?.library_session;
+    if (token) {
+      await this.authService.logout(token);
     }
 
-    const token = randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-
-    await this.prisma.authSession.create({
-      data: {
-        userId: user.id,
-        token,
-        expiresAt,
-        lastSeenAt: new Date(),
-      },
-    });
+    res.clearCookie('library_session', { path: '/' });
 
     return {
       success: true,
-      data: {
-        user,
-        token,
-        expiresIn: 24 * 60 * 60,
-      },
+      message: 'Logged out successfully.',
       timestamp: new Date().toISOString(),
     };
   }
 
-  async validateSession(token: string): Promise<AuthUser | null> {
-    const session = await this.prisma.authSession.findUnique({
-      where: { token },
-      include: { user: true },
-    });
-
-    if (!session) {
-      return null;
+  @Post('me')
+  async me(@Req() req: Request) {
+    const token = req.cookies?.library_session;
+    if (!token) {
+      throw new UnauthorizedException('Authentication required.');
     }
 
-    if (session.revokedAt || session.expiresAt <= new Date()) {
-      await this.prisma.authSession.update({
-        where: { id: session.id },
-        data: { revokedAt: new Date() },
-      });
-      return null;
+    const user = await this.authService.validateSession(token);
+    if (!user) {
+      throw new UnauthorizedException('Session expired or invalid.');
     }
-
-    await this.prisma.authSession.update({
-      where: { id: session.id },
-      data: { lastSeenAt: new Date() },
-    });
 
     return {
-      id: session.user.id,
-      email: session.user.email,
-      name: session.user.name,
-      role: session.user.role as UserRole,
-      libraryId: session.user.libraryId,
+      success: true,
+      data: { user },
+      timestamp: new Date().toISOString(),
     };
-  }
-
-  async logout(token: string) {
-    await this.prisma.authSession.updateMany({
-      where: {
-        token,
-        revokedAt: null,
-      },
-      data: {
-        revokedAt: new Date(),
-      },
-    });
   }
 }
