@@ -1,52 +1,115 @@
-const stats = [
-  { label: 'Seats', value: '63 / 80' },
-  { label: 'Occupancy', value: '79%' },
-  { label: 'Today's collection', value: '₹8,450' },
-  { label: 'Attendance', value: '74 / 80' },
-];
-
-const alerts = [
-  'Membership expiring soon',
-  'Fee due',
-  'Internet issue',
-  'Router offline',
-];
-
 export default function HomePage() {
+  const stats = [
+    { label: 'Active seats', value: '63 / 80', trend: '+4.2%' },
+    { label: 'Occupancy', value: '79%', trend: '+6.0%' },
+    { label: 'Today collection', value: '₹8,450', trend: '+₹1,120' },
+    { label: 'Attendance', value: '74 / 80', trend: '+3 visitors' },
+  ];
+
+  const alerts = [
+    { title: 'Membership expiring soon', detail: '12 students renew within 3 days.' },
+    { title: 'Fee due', detail: '₹2,300 pending from 5 overdue cycles.' },
+    { title: 'Internet issue', detail: 'Router node 2 signal dropped at 11:40 AM.' },
+    { title: 'Router offline', detail: 'OpenNDS gateway heartbeat exceeded 3 mins.' },
+  ];
+
+  const quickActions = ['New Student', 'Seats', 'Money', 'Attendance', 'Internet', 'Health'];
+
+  const recentStudents = [
+    { name: 'Rahul Sharma', id: 'LIB001', status: 'Active', plan: 'Monthly' },
+    { name: 'Priya Singh', id: 'LIB002', status: 'Due', plan: 'Quarterly' },
+    { name: 'Amit Kumar', id: 'LIB003', status: 'Active', plan: 'Monthly' },
+    { name: 'Neha Patel', id: 'LIB004', status: 'Warning', plan: 'Monthly' },
+  ];
+
   return (
-    <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem', maxWidth: 1100, margin: '0 auto' }}>
-      <h1 style={{ fontSize: '2.25rem', marginBottom: '1rem' }}>Library SaaS Dashboard</h1>
+    <main className="page-shell">
+      <header className="topbar">
+        <div>
+          <p className="eyebrow">Operations</p>
+          <h1>Library SaaS Dashboard</h1>
+        </div>
+        <nav className="top-actions">
+          <button className="ghost-button">Export</button>
+          <button className="primary-button">+ Add student</button>
+        </nav>
+      </header>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+      <section className="stats-grid">
         {stats.map((stat) => (
-          <div key={stat.label} style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: '1rem', background: '#f9fafb' }}>
-            <div style={{ color: '#6b7280', fontSize: 14 }}>{stat.label}</div>
-            <div style={{ fontSize: 28, fontWeight: 700, marginTop: 8 }}>{stat.value}</div>
-          </div>
+          <article key={stat.label} className="stat-card">
+            <span className="stat-label">{stat.label}</span>
+            <strong>{stat.value}</strong>
+            <span className="stat-trend">{stat.trend}</span>
+          </article>
         ))}
-      </div>
+      </section>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '1.5rem' }}>
-        <section style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: '1.25rem', background: '#fff' }}>
-          <h2 style={{ marginTop: 0 }}>Smart Alerts</h2>
-          <ul style={{ paddingLeft: 18, lineHeight: 2 }}>
+      <section className="content-grid">
+        <article className="panel">
+          <div className="panel-header">
+            <h2>Smart alerts</h2>
+            <span className="badge warning">4 active</span>
+          </div>
+
+          <div className="alert-list">
             {alerts.map((alert) => (
-              <li key={alert}>{alert}</li>
+              <div key={alert.title} className="alert-row">
+                <div className="alert-dot" />
+                <div>
+                  <h3>{alert.title}</h3>
+                  <p>{alert.detail}</p>
+                </div>
+              </div>
             ))}
-          </ul>
-        </section>
+          </div>
+        </article>
 
-        <section style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: '1.25rem', background: '#fff' }}>
-          <h2 style={{ marginTop: 0 }}>Quick Actions</h2>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
-            {['New Student', 'Seats', 'Money', 'Attendance', 'Internet', 'Health'].map((action) => (
-              <button key={action} style={{ padding: '0.7rem 1rem', borderRadius: 10, border: '1px solid #d1d5db', background: '#f3f4f6', cursor: 'pointer' }}>
+        <article className="panel">
+          <div className="panel-header">
+            <h2>Quick actions</h2>
+          </div>
+          <div className="action-grid">
+            {quickActions.map((action) => (
+              <button key={action} className="action-button">
                 {action}
               </button>
             ))}
           </div>
-        </section>
-      </div>
+        </article>
+      </section>
+
+      <section className="panel table-panel">
+        <div className="panel-header">
+          <h2>Recent students</h2>
+          <a href="/students">View all</a>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Student ID</th>
+              <th>Status</th>
+              <th>Plan</th>
+            </tr>
+          </thead>
+          <tbody>
+            {recentStudents.map((student) => (
+              <tr key={student.id}>
+                <td>{student.name}</td>
+                <td>{student.id}</td>
+                <td>
+                  <span className={`status-pill ${student.status.toLowerCase()}`}>
+                    {student.status}
+                  </span>
+                </td>
+                <td>{student.plan}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
     </main>
   );
 }
