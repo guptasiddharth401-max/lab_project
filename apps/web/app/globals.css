@@ -15,7 +15,8 @@ a {
   text-decoration: none;
 }
 
-button {
+button,
+input {
   font: inherit;
 }
 
@@ -46,6 +47,22 @@ h1 {
   margin: 0;
   font-size: clamp(2.1rem, 4vw, 3rem);
   line-height: 1.1;
+}
+
+.nav-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.nav-link {
+  padding: 0.6rem 0.9rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid #dbeafe;
+  color: #1e3a8a;
+  font-size: 0.92rem;
+  font-weight: 600;
 }
 
 .top-actions {
@@ -88,12 +105,20 @@ h1 {
   margin-bottom: 24px;
 }
 
+.compact-grid {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
 .stat-card {
   background: rgba(255, 255, 255, 0.86);
   border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 18px;
   padding: 20px 18px;
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+}
+
+.highlight-card {
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
 }
 
 .stat-label {
@@ -114,6 +139,10 @@ h1 {
   color: #16a34a;
   font-size: 0.85rem;
   font-weight: 600;
+}
+
+.success {
+  color: #166534;
 }
 
 .content-grid {
@@ -259,6 +288,92 @@ h1 {
   color: #b91c1c;
 }
 
+.status-pill.blocked {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.health-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.health-card span {
+  color: #64748b;
+}
+
+.health-card strong {
+  font-size: 1.5rem;
+}
+
+.health-card small {
+  color: #475569;
+}
+
+.auth-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
+}
+
+.auth-card {
+  width: min(100%, 440px);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 24px;
+  padding: 28px 24px;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.08);
+}
+
+.auth-header {
+  margin-bottom: 20px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.auth-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #334155;
+  font-weight: 600;
+}
+
+.auth-form input {
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #fff;
+  padding: 0.8rem 0.9rem;
+  font-size: 1rem;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.auth-footer {
+  margin-top: 16px;
+  text-align: center;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
 @media (max-width: 760px) {
   .content-grid {
     grid-template-columns: 1fr;
@@ -269,7 +384,8 @@ h1 {
     align-items: flex-start;
   }
 
-  .top-actions {
+  .top-actions,
+  .nav-row {
     width: 100%;
   }
 

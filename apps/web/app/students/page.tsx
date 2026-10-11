@@ -5,6 +5,7 @@ const navItems = [
   { label: 'Students', href: '/students' },
   { label: 'Payments', href: '/payments' },
   { label: 'Internet', href: '/internet' },
+  { label: 'Health', href: '/health' },
 ];
 
 export default function StudentsPage() {
@@ -13,6 +14,7 @@ export default function StudentsPage() {
     { name: 'Priya Singh', id: 'LIB002', status: 'Due', plan: 'Quarterly', due: '₹1,500' },
     { name: 'Amit Kumar', id: 'LIB003', status: 'Active', plan: 'Monthly', due: '₹0' },
     { name: 'Neha Patel', id: 'LIB004', status: 'Warning', plan: 'Monthly', due: '₹950' },
+    { name: 'Sonia Verma', id: 'LIB005', status: 'Active', plan: 'Annual', due: '₹0' },
   ];
 
   return (
