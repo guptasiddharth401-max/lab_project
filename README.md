@@ -1,220 +1,153 @@
-# Library SaaS
+# Library SaaS — Self-Serve Run Guide
 
-A production-oriented, low-cost, multi-tenant SaaS platform for study libraries and reading rooms.
+This guide is intended to help a developer or operator get the Library SaaS app running locally or on a small production-like environment without needing external support.
 
-## Overview
+## 1) Prerequisites
 
-Library SaaS replaces manual library management with an integrated system for:
-- Admissions and memberships
-- Seat allocation and management
-- Fee collection and financial tracking
-- Attendance monitoring
-- Managed library Wi-Fi access
-- Student communication and notifications
-
-**Core Principle:** "Complexity belongs in the software, not with the customer."
-
-## Technology Stack
-
-### Frontend
-- **Framework:** Next.js 14+ with React 18+
-- **Language:** TypeScript (strict mode)
-- **Styling:** Tailwind CSS
-- **State:** React hooks + Context API
-- **Architecture:** Mobile-first PWA
-
-### Backend
-- **Framework:** NestJS
-- **Language:** TypeScript (strict mode)
-- **API:** REST (/api/v1)
-- **Database:** PostgreSQL 15+
-- **ORM:** Prisma
-- **Validation:** class-validator, class-transformer
-
-### Infrastructure
-- **Containerization:** Docker
-- **Composition:** Docker Compose (local), Linux VPS (production)
-- **Proxy:** Cloudflare
-- **Router:** OpenWrt with openNDS
-- **Monorepo:** Turborepo
-
-## Repository Structure
-
-```
-library-saas/
-├── apps/
-│   ├── api/              # NestJS Backend
-│   └── web/              # Next.js Frontend
-├── packages/
-│   ├── database/         # Prisma schema & migrations
-│   ├── types/            # Shared TypeScript types
-│   ├── validation/       # Shared validation rules
-│   └── config/           # Shared configuration
-├── docs/                 # Documentation
-├── docker-compose.yml
-├── .env.example
-└── README.md
-```
-
-## Quick Start
-
-### Prerequisites
+Required:
 - Node.js 18+
-- PostgreSQL 15+ (or Docker)
-- npm or yarn
+- npm 9+
+- Docker + Docker Compose
+- PostgreSQL 15+ (or use the provided Docker service)
+- Git
 
-### Setup
-
-1. **Clone and install dependencies:**
-   ```bash
-   git clone https://github.com/guptasiddharth401-max/lab_project.git
-   cd lab_project
-   npm install
-   ```
-
-2. **Start PostgreSQL:**
-   ```bash
-   docker-compose up -d postgres
-   ```
-
-3. **Configure environment:**
-   ```bash
-   cp .env.example .env.local
-   # Edit .env.local with your settings (should work as-is for local dev)
-   ```
-
-4. **Initialize database:**
-   ```bash
-   npm run db:migrate
-   npm run db:seed
-   ```
-
-5. **Start development servers:**
-   ```bash
-   npm run dev
-   ```
-
-   - **Backend API:** http://localhost:3000
-   - **Frontend:** http://localhost:3001
-
-## Development
-
-### Available Commands
+## 2) Clone and install
 
 ```bash
-# Development
-npm run dev          # Start all services in watch mode
-
-# Type checking
-npm run type-check   # Check TypeScript in all packages
-
-# Linting
-npm run lint         # Lint all packages
-
-# Testing
-npm run test         # Run tests across all packages
-
-# Building
-npm run build        # Build all packages for production
-
-# Database
-npm run db:migrate   # Create/apply database migrations
-npm run db:seed      # Seed database with test data
+git clone https://github.com/guptasiddharth401-max/lab_project.git
+cd lab_project
+npm install
 ```
 
-### Code Style
+## 3) Configure environment
 
-- **TypeScript:** Strict mode enforced
-- **Linting:** ESLint + Prettier
-- **Format:** 2-space indentation
-- **Naming:** camelCase (variables), PascalCase (classes/types)
+From the repo root:
 
-See [Development Guidelines](./docs/DEVELOPMENT.md) for detailed standards.
+```bash
+cp .env.example .env
+```
 
-## Development Phases
+Then review `.env` and adjust values as needed. The default values are safe for local development, but production deployments should use secret values and a real DB password.
 
-- **Phase 1A:** ✅ Foundation (monorepo setup, core infrastructure)
-- **Phase 1B:** Library Management (seats, sections, shifts, plans, students, admissions)
-- **Phase 1C:** Financial System (fees, payments, receipts, cash closing)
-- **Phase 1D:** Operations (attendance, dashboard, health, alerts)
-- **Phase 1E:** Student Portal (login, OTP, membership, payments)
-- **Phase 1F:** Internet Management (devices, access rules, guests)
-- **Phase 1G:** Router Integration (enrollment, agent, openNDS)
-- **Phase 1H:** Hardening (security, audit, backups, monitoring)
+Important environment variables:
+- `DATABASE_URL`
+- `SESSION_SECRET`
+- `API_PORT`
+- `ALLOWED_ORIGINS`
+- `DEFAULT_TIMEZONE`
 
-## Multi-Tenancy
+## 4) Start the database
 
-Every record is tenant-isolated. The authenticated user's library context determines access.
+```bash
+docker-compose up -d postgres
+```
 
-**Golden Rule:** NEVER trust `libraryId` from the frontend. Derive it from the authenticated user's context on the backend.
+This starts PostgreSQL on `localhost:5432`.
 
-## Security Principles
+## 5) Generate Prisma client and apply schema
 
-- ✅ HTTPS only
-- ✅ Secure HttpOnly cookies for sessions
-- ✅ Server-side session management
-- ✅ Input validation on all endpoints
-- ✅ Role-based access control (RBAC)
-- ✅ Audit logging for sensitive actions
-- ✅ No secrets in frontend
-- ✅ Private database
-- ✅ Automated backups
+```bash
+cd packages/database
+npx prisma generate
+npx prisma migrate dev --name init
+npx prisma db seed
+```
 
-## Initial Library (Seed Data)
+Or, from the repo root:
 
-**Name:** ABC Library  
-**Capacity:** 80 seats
+```bash
+npm run db:migrate
+npm run db:seed
+```
 
-### Blocks
-- **Block A:** A01–A40
-- **Block B:** B01–B40
+## 6) Start the app
 
-### Shifts
-- **Morning:** 06:30–12:00
-- **Evening:** 12:00–18:00
-- **Full Day:** 06:30–18:00
+Run both API and web app together:
 
-## API Modules (Planned)
+```bash
+npm run dev
+```
 
-Base URL: `/api/v1`
+This starts:
+- API: http://localhost:3000/api/v1
+- Web app: http://localhost:3001
+- Health endpoint: http://localhost:3000/health
 
-- `/auth` — Authentication & sessions
-- `/users` — Staff management
-- `/students` — Student records
-- `/admissions` — Memberships
-- `/seats` — Seat allocation
-- `/payments` — Financial transactions
-- `/fees` — Fee management
-- `/attendance` — Check-in/out
-- `/internet` — Wi-Fi access control
-- `/dashboard` — Owner dashboard
-- `/audit` — Audit logs
-- `/settings` — Configuration
+## 7) Default login credentials
 
-## Testing
+The seed data includes sample accounts:
 
-Critical business rules are tested:
-- Student creation & validation
-- Seat assignment & conflicts
-- Admission activation
-- Fee calculation
-- Payment allocation
-- Attendance tracking
-- Internet access decisions
-- Device limits
-- Tenant isolation
-- RBAC enforcement
+- Owner: `owner@library.com` / `owner@123`
+- Manager: `manager@library.com` / `manager@123`
+- Receptionist: `receptionist@library.com` / `receptionist@123`
+- Accountant: `accountant@library.com` / `accountant@123`
 
-Run: `npm run test`
+## 8) Production-like local verification
 
-## Project Specification
+Use these checks after starting the app:
 
-Full specification available in `copilot.md` - comprehensive requirements for all 50+ features.
+```bash
+curl http://localhost:3000/health
+curl http://localhost:3000/api/v1/auth/me
+```
 
-## License
+If the session is active, the login flow should return a valid authenticated user object.
 
-Proprietary — Library SaaS
+## 9) Core operational checks
 
-## Support
+Before calling the app production-ready for your environment, validate:
+- login succeeds with seeded credentials
+- auth cookie is set and session is validated
+- RBAC blocks unauthorized actions
+- student creation rejects duplicate code/mobile numbers
+- payment creation processes a positive amount and generates receipt
+- internet access denies blocked, expired, or overdue cases
+- health endpoint responds successfully
 
-For issues or questions, create a GitHub issue.
+## 10) Troubleshooting
+
+### Database connection error
+- Make sure PostgreSQL is running
+- Check `DATABASE_URL` in `.env`
+- Verify `docker-compose` service is healthy
+
+### Prisma errors
+- Run `npx prisma generate`
+- Ensure migrations are applied
+- Delete and recreate local DB if necessary for a clean reset
+
+### Port conflicts
+- Ensure nothing is using `3000` or `3001`
+- Adjust your environment variables if needed
+
+### Session/Cookie issues
+- Confirm frontend requests include credentials
+- Verify `httpOnly` cookies are allowed in browser settings
+- Use secure mode only in production deployments
+
+## 11) Production deployment notes
+
+For a real production deployment:
+- use a real PostgreSQL instance, not local containers
+- set strong `SESSION_SECRET` values
+- use HTTPS only
+- restrict CORS to trusted origins
+- rotate secrets and avoid committing `.env` files
+- run backups and log retention schedules
+- use a reverse proxy or ingress
+- keep database, app, and audit logs separate
+
+## 12) Useful scripts
+
+```bash
+npm run dev
+npm run build
+npm run lint
+npm run test
+npm run db:migrate
+npm run db:seed
+```
+
+## 13) Support
+
+For repo issues or configuration help, open a GitHub issue or review the project specification in `copilot.md`.
