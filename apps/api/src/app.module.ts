@@ -9,6 +9,7 @@ import { RouterManagementModule } from './router/router-management.module';
 import { AuditModule } from './audit/audit.module';
 import { PaymentModule } from './payment/payment.module';
 import { HealthModule } from './health/health.module';
+import { BackupModule } from './backup/backup.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { HealthModule } from './health/health.module';
     AuditModule,
     PaymentModule,
     HealthModule,
+    BackupModule,
   ],
 })
 export class AppModule {}
