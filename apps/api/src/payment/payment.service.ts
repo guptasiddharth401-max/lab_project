@@ -1,6 +1,7 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { Decimal } from '@prisma/client/runtime/library';
 
 @Injectable()
 export class PaymentService {
@@ -9,19 +10,47 @@ export class PaymentService {
     private readonly audit: AuditService,
   ) {}
 
+  /**
+   * Record a payment for a student against their outstanding fee cycles.
+   * - Validate amount is positive
+   * - Create payment record
+   * - Allocate to oldest outstanding fees
+   * - Generate receipt
+   * - Maintain ledger integrity
+   */
   async recordPayment(
     libraryId: string,
     studentId: string,
-    admissionId: string,
-    amount: string,
     method: 'CASH' | 'UPI',
-    reference: string,
+    amount: number,
+    reference: string | null,
     recordedBy: string,
   ) {
-    // Validate amount
-    const amountNum = parseFloat(amount);
-    if (amountNum <= 0) {
-      throw new BadRequestException('Amount must be greater than 0');
+    if (amount <= 0) {
+      throw new BadRequestException('Payment amount must be greater than 0.');
+    }
+
+    // Validate student exists in this library
+    const student = await this.prisma.student.findFirst({
+      where: { id: studentId, libraryId },
+    });
+
+    if (!student) {
+      throw new NotFoundException('Student not found in this library.');
+    }
+
+    // Get active admission for fee allocation
+    const admission = await this.prisma.admission.findFirst({
+      where: {
+        studentId,
+        libraryId,
+        status: 'ACTIVE',
+        endDate: { gte: new Date() },
+      },
+    });
+
+    if (!admission) {
+      throw new BadRequestException('No active admission found for this student.');
     }
 
     // Create payment record
@@ -29,60 +58,56 @@ export class PaymentService {
       data: {
         libraryId,
         studentId,
-        admissionId,
-        amount: amountNum.toString(),
+        admissionId: admission.id,
+        amount: new Decimal(amount),
         method,
-        reference,
+        reference: reference || null,
         status: 'SUCCESS',
         paidAt: new Date(),
         recordedBy,
       },
     });
 
-    // Allocate payment to oldest outstanding fees
-    await this.allocatePayment(studentId, admissionId, amountNum, payment.id);
+    // Allocate payment to oldest outstanding fee cycles
+    await this.allocatePayment(studentId, admission.id, amount, payment.id, libraryId);
 
-    // Create receipt
+    // Generate receipt
     const receiptNumber = await this.generateReceiptNumber(libraryId);
     await this.prisma.receipt.create({
       data: {
         libraryId,
         paymentId: payment.id,
         number: receiptNumber,
-        amount: amountNum.toString(),
+        amount: new Decimal(amount),
         method,
         issuedAt: new Date(),
         recordedBy,
       },
     });
 
-    // Audit log
-    await this.audit.log(
-      libraryId,
-      recordedBy,
-      'PAYMENT_RECORDED',
-      'PAYMENT',
-      payment.id,
-      'SUCCESS',
-      { amount, method, studentId },
-    );
-
     return {
       success: true,
       paymentId: payment.id,
       receiptNumber,
+      amount,
     };
   }
 
+  /**
+   * Allocate payment against the oldest outstanding fee cycles.
+   * Updates fee cycle status as fees are paid.
+   */
   private async allocatePayment(
     studentId: string,
     admissionId: string,
     amount: number,
     paymentId: string,
+    libraryId: string,
   ) {
     const feeCycles = await this.prisma.feeCycle.findMany({
       where: {
         admissionId,
+        libraryId,
         status: { in: ['OPEN', 'OVERDUE'] },
       },
       orderBy: { dueDate: 'asc' },
@@ -101,20 +126,18 @@ export class PaymentService {
           paymentId,
           feeCycleId: cycle.id,
           admissionId,
-          amount: allocatedAmount.toString(),
+          amount: new Decimal(allocatedAmount),
         },
       });
 
-      // Update fee cycle status
+      // Update fee cycle status based on allocation
       const totalAllocated = await this.prisma.paymentAllocation.aggregate({
         where: { feeCycleId: cycle.id },
         _sum: { amount: true },
       });
 
-      const newStatus =
-        parseFloat(totalAllocated._sum.amount?.toString() || '0') >= cycleAmount
-          ? 'PAID'
-          : 'PARTIAL';
+      const totalAllocatedAmount = parseFloat(totalAllocated._sum.amount?.toString() || '0');
+      const newStatus = totalAllocatedAmount >= cycleAmount ? 'PAID' : 'PARTIAL';
 
       await this.prisma.feeCycle.update({
         where: { id: cycle.id },
@@ -125,23 +148,28 @@ export class PaymentService {
     }
   }
 
+  /**
+   * Generate unique receipt number per library.
+   * Format: RCP-XXXXXX (incrementing)
+   */
   private async generateReceiptNumber(libraryId: string): Promise<string> {
     const lastReceipt = await this.prisma.receipt.findFirst({
       where: { libraryId },
       orderBy: { createdAt: 'desc' },
     });
 
-    const lastNumber = lastReceipt
-      ? parseInt(lastReceipt.number.split('-')[1])
-      : 0;
-
+    const lastNumber = lastReceipt ? parseInt(lastReceipt.number.split('-')[1], 10) : 0;
     return `RCP-${String(lastNumber + 1).padStart(6, '0')}`;
   }
 
-  async getOutstandingBalance(studentId: string): Promise<number> {
+  /**
+   * Calculate outstanding balance for a student.
+   * Returns sum of open + overdue fees minus concessions.
+   */
+  async getOutstandingBalance(studentId: string, libraryId: string): Promise<number> {
     const fees = await this.prisma.feeCycle.findMany({
       where: {
-        admission: { studentId },
+        admission: { studentId, libraryId },
         status: { in: ['OPEN', 'OVERDUE'] },
       },
     });
@@ -149,6 +177,7 @@ export class PaymentService {
     const concessions = await this.prisma.concession.findMany({
       where: {
         feeCycle: { admission: { studentId } },
+        libraryId,
       },
     });
 
@@ -158,6 +187,6 @@ export class PaymentService {
       0,
     );
 
-    return totalFees - totalConcessions;
+    return Math.max(totalFees - totalConcessions, 0);
   }
 }
