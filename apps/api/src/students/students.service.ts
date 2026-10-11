@@ -20,7 +20,7 @@ export class StudentsService {
 
   async findById(id: string, libraryId: string) {
     if (!id || !libraryId) {
-      throw new BadRequestException('student id and library context are required.');
+      throw new BadRequestException('Student id and library context are required.');
     }
 
     const student = await this.prisma.student.findFirst({

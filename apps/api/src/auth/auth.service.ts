@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
@@ -13,7 +13,10 @@ export class AuthService {
       return null;
     }
 
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
     if (!user || !user.active) {
       return null;
     }
@@ -62,14 +65,19 @@ export class AuthService {
   }
 
   async validateSession(token: string): Promise<AuthUser | null> {
-    if (!token) return null;
+    if (!token) {
+      return null;
+    }
 
     const session = await this.prisma.authSession.findUnique({
       where: { token },
       include: { user: true },
     });
 
-    if (!session) return null;
+    if (!session) {
+      return null;
+    }
+
     if (session.revokedAt || session.expiresAt <= new Date()) {
       await this.prisma.authSession.update({
         where: { id: session.id },
@@ -83,7 +91,9 @@ export class AuthService {
       data: { lastSeenAt: new Date() },
     });
 
-    if (!session.user.active) return null;
+    if (!session.user.active) {
+      return null;
+    }
 
     return {
       id: session.user.id,
@@ -94,12 +104,17 @@ export class AuthService {
     };
   }
 
-  async logout(token: string) {
+  async logout(token: string): Promise<void> {
     if (!token) return;
 
     await this.prisma.authSession.updateMany({
-      where: { token, revokedAt: null },
-      data: { revokedAt: new Date() },
+      where: {
+        token,
+        revokedAt: null,
+      },
+      data: {
+        revokedAt: new Date(),
+      },
     });
   }
 
